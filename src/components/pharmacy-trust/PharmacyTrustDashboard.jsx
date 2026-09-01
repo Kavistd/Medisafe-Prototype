@@ -1,6 +1,18 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Building2, ShieldCheck, ShieldQuestion, ShieldX, BellRing, UserPlus, ClipboardCheck, MessageSquareWarning, ListTree, Activity } from 'lucide-react'
+import {
+  Building2,
+  ShieldCheck,
+  ShieldQuestion,
+  ShieldX,
+  BellRing,
+  UserPlus,
+  ClipboardCheck,
+  MessageSquareWarning,
+  ListTree,
+  Activity,
+  Zap,
+} from 'lucide-react'
 import Card from '../ui/Card'
 import StatCard from '../ui/StatCard'
 import SearchFilterBar from '../ui/SearchFilterBar'
@@ -10,6 +22,7 @@ import IntegrationStatus from './IntegrationStatus'
 import RegulatoryBasisCard from './RegulatoryBasisCard'
 import VerifiedInspectionForm from './VerifiedInspectionForm'
 import VerifiedComplaintForm from './VerifiedComplaintForm'
+import BehavioralEventModal from './BehavioralEventModal'
 import { useAsync } from '../../hooks/useAsync'
 import { getPharmacies, getTrustStats, getTrustDistribution, getIntegrationStatus } from '../../services/pharmacyTrustService'
 
@@ -22,15 +35,22 @@ const TRUST_OPTIONS = [
 
 /** The composed /pharmacy-trust dashboard: stats, distribution, system overview, and the searchable registry table. */
 export default function PharmacyTrustDashboard() {
-  const { data: pharmacies, isLoading: loadingPharmacies } = useAsync(() => getPharmacies(), [])
-  const { data: stats, isLoading: loadingStats } = useAsync(() => getTrustStats(), [])
-  const { data: distribution, isLoading: loadingDistribution } = useAsync(() => getTrustDistribution(), [])
+  const { data: pharmacies, isLoading: loadingPharmacies, reload: reloadPharmacies } = useAsync(() => getPharmacies(), [])
+  const { data: stats, isLoading: loadingStats, reload: reloadStats } = useAsync(() => getTrustStats(), [])
+  const { data: distribution, isLoading: loadingDistribution, reload: reloadDistribution } = useAsync(() => getTrustDistribution(), [])
   const { data: integration, isLoading: loadingIntegration } = useAsync(() => getIntegrationStatus(), [])
 
   const [search, setSearch] = useState('')
   const [trustFilter, setTrustFilter] = useState('all')
   const [isInspectionOpen, setIsInspectionOpen] = useState(false)
   const [isComplaintOpen, setIsComplaintOpen] = useState(false)
+  const [isEventOpen, setIsEventOpen] = useState(false)
+
+  function refreshAll() {
+    reloadPharmacies()
+    reloadStats()
+    reloadDistribution()
+  }
 
   const filteredPharmacies = useMemo(() => {
     if (!pharmacies) return []
@@ -45,6 +65,7 @@ export default function PharmacyTrustDashboard() {
 
   return (
     <div>
+      {/* Action Toolbar */}
       <div className="mb-6 flex flex-wrap gap-2">
         <Link
           to="/pharmacy-trust/register"
@@ -68,6 +89,14 @@ export default function PharmacyTrustDashboard() {
         >
           <MessageSquareWarning size={15} />
           Record Verified Complaint
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsEventOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
+          <Zap size={15} className="text-brand-600" />
+          Record Behavioral Event
         </button>
         <Link
           to="/pharmacy-trust/events"
@@ -142,8 +171,24 @@ export default function PharmacyTrustDashboard() {
         <PharmacyTable pharmacies={filteredPharmacies} isLoading={loadingPharmacies} />
       </Card>
 
-      <VerifiedInspectionForm isOpen={isInspectionOpen} onClose={() => setIsInspectionOpen(false)} pharmacies={pharmacies} />
-      <VerifiedComplaintForm isOpen={isComplaintOpen} onClose={() => setIsComplaintOpen(false)} pharmacies={pharmacies} />
+      <VerifiedInspectionForm
+        isOpen={isInspectionOpen}
+        onClose={() => setIsInspectionOpen(false)}
+        pharmacies={pharmacies}
+        onRecorded={refreshAll}
+      />
+      <VerifiedComplaintForm
+        isOpen={isComplaintOpen}
+        onClose={() => setIsComplaintOpen(false)}
+        pharmacies={pharmacies}
+        onRecorded={refreshAll}
+      />
+      <BehavioralEventModal
+        isOpen={isEventOpen}
+        onClose={() => setIsEventOpen(false)}
+        pharmacies={pharmacies ?? []}
+        onRecorded={refreshAll}
+      />
     </div>
   )
 }

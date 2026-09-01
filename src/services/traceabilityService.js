@@ -2,7 +2,7 @@ import { batches as seedBatches } from '../data/batches'
 import { pharmacies } from '../data/pharmacies'
 import { distributors } from '../data/distributors'
 import { resolveAfterDelay } from './apiClient'
-import { generateTxHash } from '../utils/mockChain'
+import { generateTxHash, generateWalletAddress } from '../utils/mockChain'
 import { SUPPLY_CHAIN_STAGES } from '../utils/constants'
 
 /**
@@ -327,6 +327,127 @@ export function rejectTransfer(batchId) {
   batch.lastUpdated = rejectedEvent.timestamp
 
   return resolveAfterDelay({ batch }, 500)
+}
+
+/** Registers a new medicine batch into on-chain traceability. */
+export function registerBatch(formData) {
+  const count = batchState.length + 1
+  const id = formData.id?.trim() || `MED-${String(count).padStart(4, '0')}`
+  const batchNumber =
+    formData.batchNumber?.trim() ||
+    `${(formData.name || 'MED').slice(0, 3).toUpperCase()}-26-${String(Math.floor(1000 + Math.random() * 9000))}`
+  const manufacturerName = formData.manufacturer || 'Pfizer Lanka (Pvt) Ltd'
+  const mfgWallet = generateWalletAddress(`MFG:${manufacturerName}`)
+  const timestamp = new Date().toISOString()
+  const quantity = Number(formData.quantity) || 10000
+  const unit = formData.unit || 'tablets'
+
+  const registrationEvent = {
+    id: `${id}-EVT-${Date.now()}`,
+    stage: 'manufacturer',
+    eventType: 'registered',
+    label: 'Batch Registered',
+    actorName: manufacturerName,
+    actorRole: 'Manufacturer',
+    walletAddress: mfgWallet,
+    fromActorName: null,
+    fromWalletAddress: null,
+    quantity,
+    timestamp,
+    txHash: generateTxHash(`${id}-registered-${Date.now()}`),
+    status: 'confirmed',
+    blockedReason: null,
+  }
+
+  const upcomingDistributor = {
+    id: null,
+    stage: 'distributor',
+    eventType: 'upcoming',
+    label: 'Distributor — not yet reached',
+    actorName: null,
+    actorRole: 'Distributor',
+    walletAddress: null,
+    fromActorName: null,
+    fromWalletAddress: null,
+    quantity: null,
+    timestamp: null,
+    txHash: null,
+    status: 'upcoming',
+    blockedReason: null,
+  }
+
+  const newBatch = {
+    id,
+    name: formData.name || 'Pharmaceutical Batch',
+    batchNumber,
+    category: formData.category || 'Therapeutic',
+    dosageForm: formData.dosageForm || 'Tablet',
+    strength: formData.strength || '500mg',
+    indication: formData.indication || 'Standard therapeutic indication',
+    classification: formData.classification || 'Prescription Only (POM)',
+    quantity,
+    unit,
+    manufactureDate: formData.manufactureDate || timestamp.slice(0, 10),
+    expiryDate: formData.expiryDate || new Date(Date.now() + 730 * 86400000).toISOString().slice(0, 10),
+    manufacturer: manufacturerName,
+    status: 'in_transit',
+    stage: 'manufacturer',
+    blockchainStatus: 'confirmed',
+    currentOwner: {
+      name: manufacturerName,
+      role: 'Manufacturer',
+      id: null,
+      walletAddress: mfgWallet,
+    },
+    destination: formData.destination ? { name: formData.destination, role: 'Distributor' } : null,
+    riskLevel: formData.riskLevel || 'low',
+    riskScore: formData.riskScore ?? 14,
+    lastUpdated: timestamp,
+    custodyChain: [registrationEvent, upcomingDistributor],
+  }
+
+  batchState.unshift(newBatch)
+  return resolveAfterDelay({ batch: newBatch, event: registrationEvent }, 500)
+}
+
+/** Initiates a batch recall and locks future custody transfers. */
+export function recallBatch({ batchId, reason, severity, notes }) {
+  const batch = findBatch(batchId)
+  if (!batch) return resolveAfterDelay(null)
+
+  const timestamp = new Date().toISOString()
+  const recallEvent = {
+    id: `${batchId}-EVT-RECALL-${Date.now()}`,
+    stage: batch.stage,
+    eventType: 'batch_recalled',
+    label: `Batch Recalled (${severity || 'Class I'})`,
+    actorName: 'National Medicines Regulatory Authority (NMRA)',
+    actorRole: 'Regulatory Authority',
+    walletAddress: generateWalletAddress('REGULATORY:NMRA'),
+    fromActorName: batch.currentOwner?.name ?? 'Custodian',
+    fromWalletAddress: batch.currentOwner?.walletAddress ?? null,
+    quantity: batch.quantity,
+    timestamp,
+    txHash: generateTxHash(`${batchId}-recall-${Date.now()}`),
+    status: 'recalled',
+    blockedReason: 'recalled_batch',
+    meta: { reason, severity, notes },
+  }
+
+  batch.status = 'recalled'
+  batch.blockchainStatus = 'confirmed'
+  batch.lastUpdated = timestamp
+  batch.custodyChain.push(recallEvent)
+
+  return resolveAfterDelay({ batch, event: recallEvent }, 600)
+}
+
+/** Retrieves all batches that have an active pending transfer awaiting recipient decision. */
+export function getPendingTransfers() {
+  const pending = batchState.filter(
+    (b) => b.blockchainStatus === 'pending_confirmation' || b.custodyChain.some((e) => e.status === 'pending')
+  )
+  return resolveAfterDelay(pending)
 }
 
 /** Test/demo helper — not used by the UI, but handy for resetting state without a full page reload. */

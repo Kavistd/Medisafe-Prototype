@@ -1,5 +1,16 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { FileText, FileClock, FileCheck2, FileX2, FileWarning, Stethoscope, ShieldCheck, History } from 'lucide-react'
+import {
+  FileText,
+  FileClock,
+  FileCheck2,
+  FileX2,
+  FileWarning,
+  Stethoscope,
+  ShieldCheck,
+  History,
+  Pill,
+} from 'lucide-react'
 import PageHeader from '../components/layout/PageHeader'
 import Card from '../components/ui/Card'
 import StatCard from '../components/ui/StatCard'
@@ -7,13 +18,23 @@ import StatusBadge from '../components/ui/StatusBadge'
 import LoadingState from '../components/ui/LoadingState'
 import EmptyState from '../components/ui/EmptyState'
 import PrescriptionFlowDiagram from '../components/prescriptions/PrescriptionFlowDiagram'
+import DispenseMedicineModal from '../components/prescriptions/DispenseMedicineModal'
 import { useAsync } from '../hooks/useAsync'
 import { getPrescriptions, getPrescriptionStats } from '../services/prescriptionRegistryService'
+import { getPharmacies } from '../services/pharmacyTrustService'
 import { truncateHash, timeAgo } from '../utils/formatters'
 
 export default function Prescriptions() {
-  const { data: stats, isLoading: loadingStats } = useAsync(() => getPrescriptionStats(), [])
-  const { data: prescriptions, isLoading: loadingPrescriptions } = useAsync(() => getPrescriptions(), [])
+  const { data: stats, isLoading: loadingStats, reload: reloadStats } = useAsync(() => getPrescriptionStats(), [])
+  const { data: prescriptions, isLoading: loadingPrescriptions, reload: reloadPrescriptions } = useAsync(() => getPrescriptions(), [])
+  const { data: pharmacies } = useAsync(() => getPharmacies(), [])
+
+  const [isDispenseOpen, setIsDispenseOpen] = useState(false)
+
+  function refreshAll() {
+    reloadStats()
+    reloadPrescriptions()
+  }
 
   const recent = prescriptions?.slice(0, 6) ?? []
 
@@ -24,16 +45,34 @@ export default function Prescriptions() {
         description="Privacy-preserving, blockchain-anchored prescriptions — the final safety layer connecting AI risk scoring and pharmacy trust."
       />
 
+      {/* Operational Action Toolbar */}
       <div className="mb-6 flex flex-wrap gap-2">
-        <Link to="/prescriptions/issue" className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700">
+        <Link
+          to="/prescriptions/issue"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700"
+        >
           <Stethoscope size={15} />
-          Doctor Portal — Issue Prescription
+          Issue Prescription
         </Link>
-        <Link to="/prescriptions/verify" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+        <Link
+          to="/prescriptions/verify"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
           <ShieldCheck size={15} />
           Verify Prescription
         </Link>
-        <Link to="/prescriptions/history" className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50">
+        <button
+          type="button"
+          onClick={() => setIsDispenseOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
+          <Pill size={15} className="text-brand-600" />
+          Dispense Medicine
+        </button>
+        <Link
+          to="/prescriptions/history"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
           <History size={15} />
           Prescription History
         </Link>
@@ -77,6 +116,15 @@ export default function Prescriptions() {
           )}
         </Card>
       </div>
+
+      {/* Dispense Medicine Modal */}
+      <DispenseMedicineModal
+        isOpen={isDispenseOpen}
+        onClose={() => setIsDispenseOpen(false)}
+        prescriptions={prescriptions ?? []}
+        pharmacies={pharmacies ?? []}
+        onDispensed={refreshAll}
+      />
     </div>
   )
 }

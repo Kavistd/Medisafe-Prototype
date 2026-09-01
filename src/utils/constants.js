@@ -62,6 +62,7 @@ export const STATUS_STYLES = {
   authorized: { label: 'Authorized', dot: 'bg-success-500', classes: 'bg-success-50 text-success-700 ring-success-600/20' },
   unauthorized: { label: 'Unauthorized', dot: 'bg-danger-500', classes: 'bg-danger-50 text-danger-700 ring-danger-600/20' },
   approved: { label: 'Approved', dot: 'bg-success-500', classes: 'bg-success-50 text-success-700 ring-success-600/20' },
+  enabled: { label: 'Enabled', dot: 'bg-success-500', classes: 'bg-success-50 text-success-700 ring-success-600/20' },
 }
 
 /** Supply-chain custody stages (Component 1): Manufacturer -> Distributor -> Pharmacy. */

@@ -6,7 +6,7 @@ import { generateTxHash, generateWalletAddress } from '../utils/mockChain'
 import { getTrustLevel as classifyTrustTier } from '../utils/trustScoring'
 import { runVerificationPipeline } from '../utils/prescriptionVerification'
 import { predictMedicineRisk } from './riskAIService'
-import { getPharmacyById as getLivePharmacy } from './pharmacyTrustService'
+import { getPharmacyById as getLivePharmacy, recordBehavioralEvent } from './pharmacyTrustService'
 
 /**
  * Component 4 — Privacy-Preserving Blockchain Prescription Management.
@@ -367,6 +367,11 @@ export function approveDispensing(prescriptionId, pharmacyId, verificationResult
     decision: 'approved',
     reasons: [],
     blockchain: generateBlockchainTransaction(`${prescriptionId}-approved-${Date.now()}`, timestamp),
+  }
+
+  // Trigger real-time dynamic trust update in Component 3
+  if (pharmacyId) {
+    recordBehavioralEvent(pharmacyId, 'dispensing_correct')
   }
 
   return resolveAfterDelay({ prescription }, 700)

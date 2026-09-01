@@ -1,17 +1,7 @@
 import Timeline from '../ui/Timeline'
 import LoadingState from '../ui/LoadingState'
 
-const EVENT_TONE = {
-  suspended: 'danger',
-  flagged: 'danger',
-  trust_score_decrease: 'warning',
-  audit_completed: 'brand',
-  verified: 'chain',
-  trust_score_increase: 'success',
-  reinstated: 'success',
-}
-
-/** Pharmacy trust event feed for the dashboard, rendered on the shared Timeline component. */
+/** Pharmacy trust event feed for the dashboard (Component 3), rendered on the shared Timeline component. */
 export default function RecentPharmacyEventsList({ events, isLoading }) {
   if (isLoading) return <LoadingState label="Loading pharmacy events…" />
 
@@ -20,7 +10,8 @@ export default function RecentPharmacyEventsList({ events, isLoading }) {
     title: event.pharmacyName,
     description: event.description,
     timestamp: event.timestamp,
-    tone: EVENT_TONE[event.eventType] ?? 'neutral',
+    // Tone follows the score's direction, not a fixed lookup table — stays correct as new event types are added.
+    tone: event.category === 'system' ? 'brand' : event.delta > 0 ? 'success' : event.delta < 0 ? 'danger' : 'chain',
   }))
 
   return <Timeline items={items} emptyLabel="No pharmacy events yet" />

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Loader2, CheckCircle2, ArrowRight } from 'lucide-react'
+import { Loader2, CheckCircle2, ArrowRight, Zap } from 'lucide-react'
 import Modal from '../ui/Modal'
 import { RECORDABLE_EVENT_TYPES, EVENT_TYPE_MAP } from '../../utils/trustScoring'
 import { truncateHash, formatDateTime } from '../../utils/formatters'
@@ -10,7 +10,8 @@ import { recordBehavioralEvent } from '../../services/pharmacyTrustService'
  * arriving from Component 1 or Component 4, then runs it through the real
  * scoring service (never a hardcoded number) and records it on-chain.
  */
-export default function BehavioralEventModal({ isOpen, onClose, pharmacy, onRecorded }) {
+export default function BehavioralEventModal({ isOpen, onClose, pharmacy = null, pharmacies = [], onRecorded }) {
+  const [selectedPharmacyId, setSelectedPharmacyId] = useState('')
   const [eventTypeId, setEventTypeId] = useState('')
   const [phase, setPhase] = useState('form') // form | recording | done
   const [result, setResult] = useState(null)
@@ -20,28 +21,65 @@ export default function BehavioralEventModal({ isOpen, onClose, pharmacy, onReco
     setEventTypeId('')
     setPhase('form')
     setResult(null)
-  }, [isOpen])
+    setSelectedPharmacyId(pharmacy?.id || (pharmacies.length > 0 ? pharmacies[0].id : ''))
+  }, [isOpen, pharmacy?.id, pharmacies])
 
-  if (!pharmacy) return null
+  const activePharmacy = pharmacy || pharmacies.find((p) => p.id === selectedPharmacyId) || pharmacies[0]
+
+  if (!isOpen) return null
 
   const selected = eventTypeId ? EVENT_TYPE_MAP[eventTypeId] : null
 
   async function handleSubmit(e) {
     e.preventDefault()
+    if (!activePharmacy) return
     setPhase('recording')
-    const outcome = await recordBehavioralEvent(pharmacy.id, eventTypeId)
+    const outcome = await recordBehavioralEvent(activePharmacy.id, eventTypeId)
     setResult(outcome)
     setPhase('done')
     onRecorded?.(outcome)
   }
 
+  function handleClose() {
+    setPhase('form')
+    setResult(null)
+    onClose()
+  }
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Record Behavioral Event" description={`${pharmacy.id} — ${pharmacy.name}`} size="lg">
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title="Record Behavioral Event"
+      description={activePharmacy ? `${activePharmacy.id} — ${activePharmacy.name}` : 'Simulate operational events affecting pharmacy trust scores'}
+      size="lg"
+    >
       {phase === 'form' && (
         <form id="behavioral-event-form" onSubmit={handleSubmit} className="space-y-4">
+          {!pharmacy && pharmacies.length > 0 && (
+            <div>
+              <label htmlFor="pharmacySelect" className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                Target Pharmacy
+              </label>
+              <select
+                id="pharmacySelect"
+                value={selectedPharmacyId}
+                onChange={(e) => setSelectedPharmacyId(e.target.value)}
+                required
+                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              >
+                {pharmacies.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.id} — {p.name} (Score: {p.trustScore})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div>
             <label htmlFor="eventType" className="text-xs font-medium uppercase tracking-wide text-slate-400">
-              Event Type
+              Operational Event Type
             </label>
             <select
               id="eventType"
@@ -87,16 +125,17 @@ export default function BehavioralEventModal({ isOpen, onClose, pharmacy, onReco
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-lg border border-slate-200 px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={!eventTypeId}
-              className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!eventTypeId || !activePharmacy}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
+              <Zap size={14} />
               Record Event
             </button>
           </div>
@@ -119,7 +158,7 @@ export default function BehavioralEventModal({ isOpen, onClose, pharmacy, onReco
             <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-success-600" />
             <div>
               <p className="text-sm font-semibold text-success-800">Event recorded on blockchain.</p>
-              <p className="text-xs text-success-700">Trust score recalculated from the four behavioral dimensions.</p>
+              <p className="text-xs text-success-700">Trust score recalculated dynamically from the four behavioral dimensions.</p>
             </div>
           </div>
 
@@ -144,8 +183,8 @@ export default function BehavioralEventModal({ isOpen, onClose, pharmacy, onReco
           <div className="flex justify-end border-t border-slate-100 pt-4">
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700"
+              onClick={handleClose}
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700"
             >
               Done
             </button>

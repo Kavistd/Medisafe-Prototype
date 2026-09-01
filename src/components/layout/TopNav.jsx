@@ -4,15 +4,16 @@ import { Menu, Bell, Wallet } from 'lucide-react'
 import { NAV_ITEMS, MOCK_WALLET } from '../../utils/constants'
 import { truncateHash } from '../../utils/formatters'
 import { useAsync } from '../../hooks/useAsync'
-import { getUnacknowledgedCount } from '../../services/alertService'
+import { getGlobalAlertStats } from '../../services/globalActivityService'
 
 /** Persistent top bar: mobile menu toggle, current page title, alerts bell, wallet chip. */
 export default function TopNav({ onOpenSidebar }) {
   const location = useLocation()
   const currentNavItem = NAV_ITEMS.find((item) => location.pathname.startsWith(item.path))
 
-  const fetchUnacknowledged = useCallback(() => getUnacknowledgedCount(), [])
-  const { data: unacknowledgedCount } = useAsync(fetchUnacknowledged, [])
+  const fetchAlertStats = useCallback(() => getGlobalAlertStats(), [])
+  const { data: alertStats } = useAsync(fetchAlertStats, [])
+  const unresolvedCount = alertStats?.unresolved
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-slate-200 bg-white/80 px-4 backdrop-blur sm:px-6">
@@ -37,9 +38,9 @@ export default function TopNav({ onOpenSidebar }) {
           aria-label="View alerts"
         >
           <Bell size={18} />
-          {!!unacknowledgedCount && (
+          {!!unresolvedCount && (
             <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-500 px-1 text-[10px] font-semibold text-white">
-              {unacknowledgedCount}
+              {unresolvedCount}
             </span>
           )}
         </Link>

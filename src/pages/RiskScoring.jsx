@@ -1,11 +1,25 @@
 import { useMemo, useState } from 'react'
-import { Boxes, ShieldCheck, ShieldAlert, ShieldX, Gauge } from 'lucide-react'
+import {
+  Boxes,
+  ShieldCheck,
+  ShieldAlert,
+  ShieldX,
+  Gauge,
+  BrainCircuit,
+  SlidersHorizontal,
+  Blocks,
+  Sparkles,
+} from 'lucide-react'
 import PageHeader from '../components/layout/PageHeader'
 import Card from '../components/ui/Card'
 import StatCard from '../components/ui/StatCard'
 import SearchFilterBar from '../components/ui/SearchFilterBar'
 import MedicineRiskTable from '../components/risk-scoring/MedicineRiskTable'
 import RiskDistributionChart from '../components/charts/RiskDistributionChart'
+import AnalyzeMedicineModal from '../components/risk-scoring/AnalyzeMedicineModal'
+import BatchRiskAssessmentModal from '../components/risk-scoring/BatchRiskAssessmentModal'
+import ModelComparisonModal from '../components/risk-scoring/ModelComparisonModal'
+import RecordRiskAssessmentModal from '../components/risk-scoring/RecordRiskAssessmentModal'
 import { useAsync } from '../hooks/useAsync'
 import { getRiskAssessments, getRiskStats, getRiskDistribution } from '../services/riskAIService'
 import { formatRiskScore } from '../utils/formatters'
@@ -17,12 +31,34 @@ const RISK_OPTIONS = [
 ]
 
 export default function RiskScoring() {
-  const { data: rows, isLoading: loadingRows } = useAsync(() => getRiskAssessments(), [])
-  const { data: stats, isLoading: loadingStats } = useAsync(() => getRiskStats(), [])
-  const { data: distribution, isLoading: loadingDistribution } = useAsync(() => getRiskDistribution(), [])
+  const { data: rows, isLoading: loadingRows, reload: reloadRows } = useAsync(() => getRiskAssessments(), [])
+  const { data: stats, isLoading: loadingStats, reload: reloadStats } = useAsync(() => getRiskStats(), [rows])
+  const { data: distribution, isLoading: loadingDistribution, reload: reloadDistribution } = useAsync(() => getRiskDistribution(), [rows])
 
   const [search, setSearch] = useState('')
   const [riskFilter, setRiskFilter] = useState('all')
+
+  // Modals state
+  const [isAnalyzeOpen, setIsAnalyzeOpen] = useState(false)
+  const [isBatchRiskOpen, setIsBatchRiskOpen] = useState(false)
+  const [isModelCompOpen, setIsModelCompOpen] = useState(false)
+  const [isRecordRiskOpen, setIsRecordRiskOpen] = useState(false)
+
+  function refreshAll() {
+    reloadRows()
+    reloadStats()
+    reloadDistribution()
+  }
+
+  function handleAnalysisComplete() {
+    refreshAll()
+  }
+
+  function handleRecorded() {
+    refreshAll()
+  }
+
+  const batchList = (rows ?? []).map((r) => r.batch)
 
   const filteredRows = useMemo(() => {
     if (!rows) return []
@@ -46,6 +82,42 @@ export default function RiskScoring() {
         title="AI Medicine Risk Scoring"
         description="Explainable AI-based risk assessment for pharmaceutical batches."
       />
+
+      {/* Operational Action Toolbar */}
+      <div className="mb-6 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setIsAnalyzeOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700"
+        >
+          <BrainCircuit size={15} />
+          Analyze Medicine
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsBatchRiskOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
+          <Sparkles size={15} className="text-brand-600" />
+          Batch Risk Assessment
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsModelCompOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
+          <SlidersHorizontal size={15} />
+          Model Comparison
+        </button>
+        <button
+          type="button"
+          onClick={() => setIsRecordRiskOpen(true)}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+        >
+          <Blocks size={15} />
+          Record Risk Assessment
+        </button>
+      </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <StatCard label="Total Batches Analysed" value={loadingStats ? '—' : stats?.total} icon={Boxes} tone="brand" />
@@ -74,6 +146,31 @@ export default function RiskScoring() {
         </div>
         <MedicineRiskTable rows={filteredRows} isLoading={loadingRows} />
       </Card>
+
+      {/* Operational Modals */}
+      <AnalyzeMedicineModal
+        isOpen={isAnalyzeOpen}
+        onClose={() => setIsAnalyzeOpen(false)}
+        onAnalysisComplete={handleAnalysisComplete}
+      />
+
+      <BatchRiskAssessmentModal
+        isOpen={isBatchRiskOpen}
+        onClose={() => setIsBatchRiskOpen(false)}
+        batches={batchList}
+      />
+
+      <ModelComparisonModal
+        isOpen={isModelCompOpen}
+        onClose={() => setIsModelCompOpen(false)}
+      />
+
+      <RecordRiskAssessmentModal
+        isOpen={isRecordRiskOpen}
+        onClose={() => setIsRecordRiskOpen(false)}
+        rows={rows ?? []}
+        onRecorded={handleRecorded}
+      />
     </div>
   )
 }

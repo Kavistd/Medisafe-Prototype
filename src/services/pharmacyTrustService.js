@@ -324,6 +324,7 @@ export function getTrustStats() {
   const rows = [...pharmacyState.values()]
   const counts = computeTierCounts()
   const activeAlerts = alertState.filter((a) => a.status !== 'resolved').length
+  const averageScore = rows.length ? Math.round(rows.reduce((sum, p) => sum + p.trustScore, 0) / rows.length) : 0
 
   const pctChange = (key) => {
     const base = baselineTierCounts[key]
@@ -338,6 +339,7 @@ export function getTrustStats() {
     underReview: counts.under_review,
     highRisk: counts.high_risk,
     activeAlerts,
+    averageScore,
     changes: {
       highlyTrusted: pctChange('highly_trusted'),
       trusted: pctChange('trusted'),

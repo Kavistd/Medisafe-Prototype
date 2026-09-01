@@ -138,10 +138,12 @@ function buildAssessment(batch) {
   }
 }
 
+const customBatchesState = new Map()
+
 const assessmentState = new Map(batches.map((batch) => [batch.id, buildAssessment(batch)]))
 
 const findAssessment = (batchId) => assessmentState.get(batchId) ?? null
-const findBatch = (batchId) => batches.find((b) => b.id === batchId) ?? null
+const findBatch = (batchId) => batches.find((b) => b.id === batchId) ?? customBatchesState.get(batchId) ?? null
 
 // ---------------------------------------------------------------------------
 // Reads
@@ -149,13 +151,25 @@ const findBatch = (batchId) => batches.find((b) => b.id === batchId) ?? null
 
 /** Batch + assessment pairs for the Medicine Risk Table. */
 export function getRiskAssessments() {
-  const rows = batches.map((batch) => ({ batch, assessment: findAssessment(batch.id) }))
+  const allBatches = [...batches, ...customBatchesState.values()]
+  const rows = allBatches.map((batch) => {
+    let assessment = findAssessment(batch.id)
+    if (!assessment) {
+      assessment = buildAssessment(batch)
+      assessmentState.set(batch.id, assessment)
+    }
+    return { batch, assessment }
+  })
   return resolveAfterDelay(rows)
 }
 
 export function getRiskAssessmentByBatchId(batchId) {
   const batch = findBatch(batchId)
-  const assessment = findAssessment(batchId)
+  let assessment = findAssessment(batchId)
+  if (batch && !assessment) {
+    assessment = buildAssessment(batch)
+    assessmentState.set(batchId, assessment)
+  }
   return resolveAfterDelay(batch && assessment ? { batch, assessment } : null)
 }
 
@@ -182,7 +196,14 @@ export function getRiskDistribution() {
 
 /** Simulates running the batch through the XGBoost + Random Forest ensemble. */
 export function predictMedicineRisk(batchId) {
-  const assessment = findAssessment(batchId)
+  let assessment = findAssessment(batchId)
+  if (!assessment) {
+    const batch = findBatch(batchId)
+    if (batch) {
+      assessment = buildAssessment(batch)
+      assessmentState.set(batchId, assessment)
+    }
+  }
   if (!assessment) return resolveAfterDelay(null)
   const { batchId: id, xgboost, randomForest, finalScore, riskLevel, modelConfidence, baseValue } = assessment
   return resolveAfterDelay({ batchId: id, xgboost, randomForest, finalScore, riskLevel, modelConfidence, baseValue }, 1100)
@@ -196,9 +217,46 @@ export function getShapExplanation(batchId) {
   return resolveAfterDelay({ shapFeatures, narrative, riskFactors, baseValue, shapExplanationHash }, 900)
 }
 
+/** Analyzes a custom medicine parameter set through the full AI ensemble + SHAP pipeline. */
+export function analyzeCustomMedicine(formData) {
+  const batchId = formData.batchId?.trim() || `MED-${Math.floor(1000 + Math.random() * 9000)}`
+  const baseScore = formData.riskScore != null ? Number(formData.riskScore) : Math.floor(12 + (seededRandom(`${batchId}:seed`) * 65))
+
+  const batch = {
+    id: batchId,
+    name: formData.name || 'Custom Formulation',
+    batchNumber: formData.batchNumber || `${(formData.name || 'MED').slice(0, 3).toUpperCase()}-26-${String(Math.floor(1000 + Math.random() * 9000))}`,
+    category: formData.category || 'Therapeutic',
+    dosageForm: formData.dosageForm || 'Tablet',
+    strength: formData.strength || '500mg',
+    indication: formData.indication || 'General therapeutic use',
+    classification: formData.classification || 'Prescription Only (POM)',
+    manufacturer: formData.manufacturer || 'Pfizer Lanka (Pvt) Ltd',
+    quantity: Number(formData.quantity) || 10000,
+    unit: formData.unit || 'units',
+    manufactureDate: formData.manufactureDate || new Date().toISOString().slice(0, 10),
+    expiryDate: formData.expiryDate || new Date(Date.now() + 730 * 86400000).toISOString().slice(0, 10),
+    riskScore: baseScore,
+    riskLevel: levelFromScore(baseScore / 100),
+  }
+
+  const assessment = buildAssessment(batch)
+  assessmentState.set(batchId, assessment)
+  customBatchesState.set(batchId, batch)
+
+  return resolveAfterDelay({ batch, assessment }, 800)
+}
+
 /** Writes the finished assessment to the (mock) chain — mutates the in-memory record. */
 export function recordRiskOnBlockchain(batchId) {
-  const assessment = findAssessment(batchId)
+  let assessment = findAssessment(batchId)
+  if (!assessment) {
+    const batch = findBatch(batchId)
+    if (batch) {
+      assessment = buildAssessment(batch)
+      assessmentState.set(batchId, assessment)
+    }
+  }
   if (!assessment) return resolveAfterDelay(null)
   assessment.blockchain = {
     status: 'recorded',
@@ -207,3 +265,4 @@ export function recordRiskOnBlockchain(batchId) {
   }
   return resolveAfterDelay(assessment.blockchain, 900)
 }
+
